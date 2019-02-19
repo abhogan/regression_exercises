@@ -14,6 +14,11 @@ head(dat_srrs)
 str(dat_srrs)
 
 dat_srrs_mn <- filter(dat_srrs, state == "MN")
+dat_cty_mn <- filter(dat_cty, st == "MN")
+dat_cty_mn <- unique(dat_cty_mn)
+dat_cty_mn <- dat_cty_mn %>%
+  group_by(ctfips) %>%
+  slice(1L)
 
 log.radon <- log (ifelse (dat_srrs_mn$activity==0, .1, dat_srrs_mn$activity))
 floor <- dat_srrs_mn$floor
@@ -35,3 +40,31 @@ display(M0)
 M1 <- lmer (log.radon ~ floor + (1 | county))
 display(M1)
 coef(M1)
+
+### Group-level predictors
+## Get the county-level predictor
+#srrs_fips <- dat_srrs_mn$stfips*1000 + dat_srrs_mn$cntyfips
+#cty_fips <- 1000*dat_cty_mn$stfips + dat_cty_mn$ctfips
+dat_cty_mn$log.uranium <- log (dat_cty_mn$Uppm)
+dat_cty_mn <- dat_cty_mn[which(dat_cty_mn$ctfips %in% county), ]
+
+sub <- select(dat_cty_mn, c(ctfips, log.uranium))
+sub <- unique(sub) # remove duplicates
+
+
+dat_srrs_mn <- left_join(dat_srrs_mn, sub, by = c("cntyfips" = "ctfips"))
+log.uranium.full <- dat_srrs_mn$log.uranium
+
+
+## Varying-intercept model w/ group-level predictors
+M2 <- lmer (log.radon ~ floor + log.uranium.full + (1 | county))
+display (M2)
+coef(M2)
+fixef(M2)
+ranef(M2)
+
+plot(dat_cty_mn$log.uranium, x$county$`(Intercept)`)
+dat_cty_mn[1:89,]
+
+y <- fixef(M2)[1] + fixef(M2)[3]*dat_cty_mn$log.uranium + ranef(M2)$county
+plot(dat_cty_mn$log.uranium, y$`(Intercept)`)
